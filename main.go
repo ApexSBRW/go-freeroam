@@ -38,7 +38,7 @@ func main() {
 				"addr":     addr,
 				"ping":     client.Ping,
 				"idle_for": math.Round(time.Now().Sub(client.LastPacket).Seconds() * 1000),
-				"pos":      []float64{pos.X, pos.Y},
+				"pos":      []int64{pos.X, pos.Y},
 				"slots":    slots,
 			})
 		}

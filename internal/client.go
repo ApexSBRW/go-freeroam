@@ -52,7 +52,7 @@ type Client struct {
 	startTime  time.Time
 	cliTime    []byte
 	seq        uint16
-	carPos     []byte
+	carPos     CarPosPacket
 	chanInfo   []byte
 	playerInfo []byte
 	Slots      map[int]*slotInfo
@@ -97,7 +97,7 @@ func (c *Client) processPacket(packet []byte) {
 			slots[i] = nil
 		}
 		c.Slots = slots
-		c.carPos = nil
+		c.carPos = CarPosPacket{}
 		c.chanInfo = nil
 		c.playerInfo = nil
 		c.LastPacket = c.startTime
@@ -124,7 +124,7 @@ func (c *Client) processPacket(packet []byte) {
 			c.playerInfo = innerData
 			handled = true
 		case 0x12:
-			c.carPos = innerData
+			c.carPos.Update(innerData)
 			time := binary.BigEndian.Uint16(innerData[0:2])
 			c.Ping = int(c.getTimeDiff() - time)
 			handled = true
@@ -142,7 +142,7 @@ func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 			continue
 		}
 		distance := self.GetPos().Sub(client.GetPos()).Abs().Length()
-		//fmt.Printf("(FREEROAM) Distance between %s and %s is %v\n", self.addr.String(), client.addr.String(), distance)
+		//fmt.Printf("(FREEROAM) Distance between %s and %s is %v\n", self.Addr.String(), client.Addr.String(), distance)
 		if distance <= 10000 {
 			closePlayers = append(closePlayers, clientPosSortInfo{
 				Length: int(distance),
@@ -242,67 +242,11 @@ func (self *Client) sendPlayerSlots() {
 }
 
 func (c Client) GetPos() Vector2D {
-	return Vector2D{
-		X: float64(c.getX()),
-		Y: float64(c.getY()),
-	}
-}
-
-func clone(a []byte) []byte {
-	out := make([]byte, len(a))
-	copy(out, a)
-	return out
-}
-
-func (c Client) getY() uint32 {
-	out := clone(c.carPos[3:6])
-	if c.isLowY() {
-		out[2] = out[2] & 0xf8
-	} else {
-		out[2] = out[2] & 0xfc
-	}
-	return binary.BigEndian.Uint32([]byte{0x00, out[0], out[1], out[2]}) >> 2 & bitMask(17)
-}
-
-func (c Client) getX() uint32 {
-	out := clone(c.carPos[7:10])
-	var shift uint
-	if c.isLowY() {
-		out[0] = out[0] & 0x7f
-		out[2] = out[2] & 0xe0
-		shift = 5
-	} else {
-		out[0] = out[0] & 0x3f
-		out[2] = out[2] & 0xf0
-		shift = 4
-	}
-	return binary.BigEndian.Uint32([]byte{0x00, out[0], out[1], out[2]}) >> shift & bitMask(18)
-}
-
-func (c Client) isLowY() bool {
-	yHeader := binary.BigEndian.Uint16(c.carPos[3:6])
-	return yHeader <= 1941
+	return c.carPos.Pos()
 }
 
 func (c Client) isOk() bool {
-	return c.chanInfo != nil && c.playerInfo != nil && c.carPos != nil
-}
-
-func bitMask(n int) uint32 {
-	out := 0x00
-	for i := 0; i < n; i++ {
-		out = out | (0x01 << uint(i))
-	}
-	return uint32(out)
-}
-
-func (c Client) getCarPos(timei uint16) []byte {
-	buf := clone(c.carPos)
-	time := make([]byte, 2)
-	binary.BigEndian.PutUint16(time, timei)
-	buf[0] = time[0]
-	buf[1] = time[1]
-	return buf
+	return c.chanInfo != nil && c.playerInfo != nil && c.carPos.Valid()
 }
 
 func (c Client) getFullPosPacket(time uint16) []byte {
@@ -311,7 +255,7 @@ func (c Client) getFullPosPacket(time uint16) []byte {
 	buf.WriteByte(0x00) // Slot start
 	buf.WriteByte(0x12) // Type
 	buf.WriteByte(0x1a) // Size
-	buf.Write(c.getCarPos(time))
+	buf.Write(c.carPos.Packet(time))
 	buf.WriteByte(0xff) // Slot end
 	return buf.Bytes()
 }
@@ -328,7 +272,7 @@ func (c Client) getFullSlotPacket(time uint16) []byte {
 	buf.Write(c.playerInfo)
 	buf.WriteByte(0x12) // Type
 	buf.WriteByte(0x1a) // Size
-	buf.Write(c.getCarPos(time))
+	buf.Write(c.carPos.Packet(time))
 	buf.WriteByte(0xff) // Slot end
 	return buf.Bytes()
 }
