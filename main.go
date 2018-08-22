@@ -11,11 +11,11 @@ import (
 	"net/http"
 	_ "net/http/pprof"
 
-	"gitlab.com/rbs-nfsw/go-freeroam/internal"
+	"./freeroam"
 )
 
 func main() {
-	i, _ := internal.Start(":9999")
+	i, _ := freeroam.Start(":9999")
 	fmt.Println("Freeroam server running on port 9999")
 
 	// pprof

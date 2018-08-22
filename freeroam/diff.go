@@ -1,4 +1,4 @@
-package internal
+package freeroam
 
 type slotInfo struct {
 	JustAdded bool
