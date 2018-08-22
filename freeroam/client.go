@@ -103,6 +103,11 @@ func (c *Client) processPacket(packet []byte) {
 		c.LastPacket = c.startTime
 		return
 	}
+
+	if len(packet) <= 22 {
+		return
+	}
+
 	data := packet[16 : len(packet)-5]
 	reader := bytes.NewReader(data)
 	for {
