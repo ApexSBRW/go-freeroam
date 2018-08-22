@@ -184,8 +184,16 @@ func (self *Client) addSlot(client *Client) {
 			}
 		}
 		sort.Ints(suitableSlots)
+
+		if len(suitableSlots) == 0 {
+			return len(self.Slots) - 1
+		}
+
 		return suitableSlots[0]
+
+		//return len(suitableSlots)
 	}()
+
 	self.Slots[index] = &slotInfo{
 		JustAdded: true,
 		Client:    client,
