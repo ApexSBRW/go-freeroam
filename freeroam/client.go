@@ -43,8 +43,10 @@ func newClient(cliTime []byte, addr *net.UDPAddr, conn *net.UDPConn, instance *I
 		LastPacket: time.Now(),
 		instance:   instance,
 	}
+
 	return c
 }
+
 
 type Client struct {
 	Addr       *net.UDPAddr
@@ -130,8 +132,8 @@ func (c *Client) processPacket(packet []byte) {
 			handled = true
 		case 0x12:
 			c.carPos.Update(innerData)
-			time := binary.BigEndian.Uint16(innerData[0:2])
-			c.Ping = int(c.getTimeDiff() - time)
+			clientTime := binary.BigEndian.Uint16(innerData[0:2])
+			c.Ping = int(c.getTimeDiff() - clientTime)
 			handled = true
 		}
 		if handled && c.isOk() {

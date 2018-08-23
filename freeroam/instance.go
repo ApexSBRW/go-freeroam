@@ -56,6 +56,7 @@ func (i *Instance) RunPacketRead() {
 				i.Clients[addr.String()].replyHandshake()
 			} else {
 				// Something other
+				i.Unlock()
 				continue
 			}
 		} else {
