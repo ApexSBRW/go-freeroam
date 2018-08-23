@@ -16,16 +16,16 @@ type clientPosSortInfo struct {
 
 type clientPosSort []clientPosSortInfo
 
-func (self clientPosSort) Len() int {
-	return len(self)
+func (c clientPosSort) Len() int {
+	return len(c)
 }
 
-func (self clientPosSort) Swap(i, j int) {
-	self[i], self[j] = self[j], self[i]
+func (c clientPosSort) Swap(i, j int) {
+	c[i], c[j] = c[j], c[i]
 }
 
-func (self clientPosSort) Less(i, j int) bool {
-	return self[i].Length < self[j].Length
+func (c clientPosSort) Less(i, j int) bool {
+	return c[i].Length < c[j].Length
 }
 
 func newClient(cliTime []byte, addr *net.UDPAddr, conn *net.UDPConn, instance *Instance) *Client {
@@ -46,7 +46,6 @@ func newClient(cliTime []byte, addr *net.UDPAddr, conn *net.UDPConn, instance *I
 
 	return c
 }
-
 
 type Client struct {
 	Addr       *net.UDPAddr
@@ -142,14 +141,14 @@ func (c *Client) processPacket(packet []byte) {
 	}
 }
 
-func (self *Client) getClosestPlayers(clients []*Client) []*Client {
+func (c *Client) getClosestPlayers(clients []*Client) []*Client {
 	closePlayers := make([]clientPosSortInfo, 0)
 	for _, client := range clients {
-		if !client.isOk() || client.Addr == self.Addr {
+		if !client.isOk() || client.Addr == c.Addr {
 			continue
 		}
-		distance := self.GetPos().Sub(client.GetPos()).Abs().Length()
-		//fmt.Printf("(FREEROAM) Distance between %s and %s is %v\n", self.Addr.String(), client.Addr.String(), distance)
+		distance := c.GetPos().Sub(client.GetPos()).Abs().Length()
+		//fmt.Printf("(FREEROAM) Distance between %s and %s is %v\n", c.Addr.String(), client.Addr.String(), distance)
 		if distance <= 10000 {
 			closePlayers = append(closePlayers, clientPosSortInfo{
 				Length: int(distance),
@@ -165,22 +164,25 @@ func (self *Client) getClosestPlayers(clients []*Client) []*Client {
 	return out
 }
 
-func (self *Client) removeSlot(client *Client) {
+func (c *Client) removeSlot(client *Client) {
 	index := func() int {
-		for i, c := range self.Slots {
+		for i, c := range c.Slots {
 			if c != nil && c.Client == client {
 				return i
 			}
 		}
 		return -1
 	}()
-	self.Slots[index] = nil
+
+	if index != -1 {
+		c.Slots[index] = nil
+	}
 }
 
-func (self *Client) addSlot(client *Client) {
+func (c *Client) addSlot(client *Client) {
 	index := func() int {
 		suitableSlots := make([]int, 0)
-		for i, c := range self.Slots {
+		for i, c := range c.Slots {
 			if c == nil {
 				suitableSlots = append(suitableSlots, i)
 			}
@@ -188,7 +190,7 @@ func (self *Client) addSlot(client *Client) {
 		sort.Ints(suitableSlots)
 
 		if len(suitableSlots) == 0 {
-			return len(self.Slots) - 1
+			return len(c.Slots) - 1
 		}
 
 		return suitableSlots[0]
@@ -196,64 +198,64 @@ func (self *Client) addSlot(client *Client) {
 		//return len(suitableSlots)
 	}()
 
-	self.Slots[index] = &slotInfo{
+	c.Slots[index] = &slotInfo{
 		JustAdded: true,
 		Client:    client,
 	}
 }
 
-func (self *Client) recalculateSlots(clients []*Client) {
-	players := self.getClosestPlayers(clients)
+func (c *Client) recalculateSlots(clients []*Client) {
+	players := c.getClosestPlayers(clients)
 	oldPlayers := make([]*Client, 0)
-	for _, v := range self.Slots {
+	for _, v := range c.Slots {
 		if v != nil {
 			oldPlayers = append(oldPlayers, v.Client)
 		}
 	}
 	diff := ArrayDiff(oldPlayers, players)
 	for _, c := range diff.Removed {
-		self.removeSlot(c)
+		c.removeSlot(c)
 	}
 	for _, c := range diff.Added {
-		self.addSlot(c)
+		c.addSlot(c)
 	}
 }
 
-func (self *Client) sendPlayerSlots() {
-	clients := make([]*Client, len(self.instance.Clients))
+func (c *Client) sendPlayerSlots() {
+	clients := make([]*Client, len(c.instance.Clients))
 	{
 		i := 0
-		for _, c := range self.instance.Clients {
+		for _, c := range c.instance.Clients {
 			clients[i] = c
 			i++
 		}
 	}
-	self.recalculateSlots(clients)
-	buf := self.instance.buffers[0]
+	c.recalculateSlots(clients)
+	buf := c.instance.buffers[0]
 	buf.Reset()
-	seq := self.getSeq()
+	seq := c.getSeq()
 	binary.Write(buf, binary.BigEndian, seq)
 	buf.WriteByte(0x02)
-	binary.Write(buf, binary.BigEndian, self.getTimeDiff())
-	buf.Write(self.cliTime)
+	binary.Write(buf, binary.BigEndian, c.getTimeDiff())
+	buf.Write(c.cliTime)
 	binary.Write(buf, binary.BigEndian, seq)
 	buf.Write([]byte{0xff, 0xff, 0x00})
 	for i := 0; i < 14; i++ {
-		slot := self.Slots[i]
+		slot := c.Slots[i]
 		//fmt.Printf("%d: %#v\n", i, slot)
 		if slot == nil {
 			buf.Write([]byte{0xff, 0xff})
 		} else {
 			if slot.JustAdded {
-				buf.Write(slot.Client.getFullSlotPacket(self.getTimeDiff() - 15))
+				buf.Write(slot.Client.getFullSlotPacket(c.getTimeDiff() - 15))
 				slot.JustAdded = false
 			} else {
-				buf.Write(slot.Client.getFullPosPacket(self.getTimeDiff() - 15))
+				buf.Write(slot.Client.getFullPosPacket(c.getTimeDiff() - 15))
 			}
 		}
 	}
 	buf.Write([]byte{0x01, 0x01, 0x01, 0x01})
-	self.conn.WriteToUDP(buf.Bytes(), self.Addr)
+	c.conn.WriteToUDP(buf.Bytes(), c.Addr)
 }
 
 func (c Client) GetPos() Vector2D {
